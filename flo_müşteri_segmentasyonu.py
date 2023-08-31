@@ -46,7 +46,8 @@ date_columns = df.columns[df.columns.str.contains("date")]
 df[date_columns] = df[date_columns].apply(pd.to_datetime)
 df.info()
 
-############ADIM 5
+############ADIM 5:
+#alışveriş kanallarındaki müşteri sayısını, ürün sayısını ve toplam harcamaların dağılımı
 df.groupby("order_channel").agg({"master_id": lambda master_id: master_id.count(),
                                  "order_num_total": lambda order_num_total: order_num_total.sum(),
                                  "customer_value_total": lambda customer_value_total: customer_value_total.sum()
@@ -68,22 +69,22 @@ def data_prep(dataframe):
 
 #GÖREV 2
 #ADIM1
-df["last_order_date"].max()
+df["last_order_date"].max() #son alışveriş tarihi
 analysis_date = dt.datetime(2021, 6,1)
 
 #adım2,3,4
 rfm = pd.DataFrame()
 rfm["customer_id"] = df["master_id"]
-rfm["recency"] = (analysis_date - df["last_order_date"]).astype("timedelta64[D]")
-rfm["frewuency"] = df["order_num_total"]
-rfm["monetary"] = df["customer_value_total"]
-rfm["frequency"] = df["order_num_total"]
+rfm["recency"] = (analysis_date - df["last_order_date"]).astype("timedelta64[D]") #gün cinsinden istediğim için; timedelta64[D].
+rfm["frequency"] = df["order_num_total"] #ürün sayısı
+rfm["monetary"] = df["customer_value_total"] #toplam harcama miktarı
 rfm.head()
 
 ##GÖREV 3
 #ædım1
 rfm["recency_score"] = pd.qcut(rfm["recency"], 5, labels = [5, 4, 3, 2, 1])
-rfm["frequency_score"] = pd.qcut(rfm["frequency"], 5, labels = [1, 2, 3, 4, 5])
+#rank(method = "first"): ilk bulduğun sınıfı ilk segemente at
+rfm["frequency_score"] = pd.qcut(rfm["frequency"].rank(method = "first"), 5, labels = [1, 2, 3, 4, 5])
 rfm["monetary_score"] = pd.qcut(rfm["monetary"], 5, labels= [1, 2, 3, 4, 5])
 rfm.head()
 #adım2
@@ -111,10 +112,22 @@ rfm["segment"] = rfm["RFM_SCORE"].replace( seg_map, regex=True )
 rfm = rfm[["recency", "frequency", "monetary", "segment"]]
 
 #görev5
-#adım1
-#..
+#adım1: segmentlerin r,f,m ortalamalarını incele
+rfm[["seegment", "recency", "frequency", "monetary"]].groupby("segment").agg(["mean", "count", "sum"])
 
-#adım 2.a
+#adım 2
+# sadık ve kadın kategorisinden kişileri yeni csv dosyasında kaydet
+target_segments_customer_ids = rfm[rfm["segment"].isin(["champions", "loyal_customers"])]["customer_id"]
+cust_ids = df[(df["master_id"].isin(target_segments_customer_ids)) & (df["interested_in_categories_12"].str.contains("KADIN"))]["master_id"]
+cust_ids.to_csv("yeni-marla-hedef-müşteri_id.csv", index=False)
+cust_ids.shape
 
+rfm.head()
 
+#erkek çocuk ürünlerinde %40a yakın indirim bulunmaktadır. bu indirimle ilgili kategorilerle ilgilenen geçmişte iyi müşterilerden olan ama
+#uzun süredir alışveriş yapmayan ve yeni gelen müşteriler özel olarak hedef alınmak isteniliyor.
+#uygun profildeki müşterilerin is' lerini csv dosyasını "indirim" olarak kaydedin.
 
+target_segments_customer_ids = rfm[rfm["segment"].isin(["cant_loose", "atrisk", "hibernating", "new_customers"])]["customer_id"]
+cust_ids = df[(df["master_id"].isin(target_segments_customer_ids)) & ((df["interested_in_categories_12"].str.contains("ERKEK")) | (df["interested_in_categories_12"].str.contains("COCUK")))]["master_id"]
+cust_ids.to_csv("indirim-hedef-müşteri_ids.csv", index=False)
